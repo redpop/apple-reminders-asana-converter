@@ -1,0 +1,16 @@
+# Apple Reminders to Asana CSV Converter
+# This project uses only Python standard library modules
+# No additional dependencies required
+
+# Standard library modules used:
+# - json
+# - csv  
+# - argparse
+# - os
+# - sys
+# - datetime
+# - pathlib
+# - typing
+# - re
+
+# Python 3.6+ required
