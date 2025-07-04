@@ -91,3 +91,6 @@ output_*
 # Temporary files
 *.tmp
 *.bak
+
+# Claude Code configuration
+CLAUDE.md
