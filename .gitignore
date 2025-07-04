@@ -84,9 +84,9 @@ json/
 *.json
 !examples/*.json
 
-# Test files
-test_*
+# Test output files (but not test source files)
 output_*
+test_output*
 
 # Temporary files
 *.tmp
