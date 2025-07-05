@@ -151,10 +151,15 @@ The converter preserves rich metadata from the Backup Shortcut export:
 
 ### Tag Processing
 
+**Important:** Asana CSV imports do not support direct tag mapping. Tags will be imported as "Tags (importiert)" custom field.
+
 Combined tag extraction:
-- **Hashtags from titles**: `"Task #urgent #work"` → Tags: "urgent, work"
+- **Hashtags from titles**: `"Task #urgent #work"` → Tags: "urgent, work" 
 - **Native Apple tags**: `["project", "important"]` → Combined with hashtags
+- **Format**: Comma-separated with spaces for readability
 - **Deduplication**: Case-insensitive duplicate removal
+
+**Manual mapping required:** After import, you can manually map "Tags (importiert)" values to real Asana tags using Asana's multi-select features.
 
 ### Priority Mapping
 
@@ -191,6 +196,23 @@ python asana_convert.py -f examples/sample_bulk_reminders.json \
 - **Subtasks not nesting** → Check parent task names match exactly
 - **Encoding issues** → Use `--asana-format` for UTF-8 BOM
 - **Missing sections** → Tasks import to project level, use sections within project
+- **Tags not working** → Normal behavior! Tags become "Tags (importiert)" custom field
+
+### Tags Import Limitation
+
+**Known Asana limitation:** CSV imports cannot directly create Asana tags. This is expected behavior since 2018.
+
+**What happens:**
+- Tags column becomes "Tags (importiert)" custom field
+- Values like "urgent, work" are preserved as text
+- This is NOT an error - it's how Asana works
+
+**Workaround:**
+1. Import CSV with "Tags (importiert)" field
+2. Use Asana's advanced search to filter by tag values
+3. Multi-select tasks with same tag values
+4. Manually add real Asana tags to selected tasks
+5. Alternative: Create custom multi-select field instead of using tags
 
 ### Performance
 - **Large files (1000+ reminders)** → Use `--dry-run` first to estimate

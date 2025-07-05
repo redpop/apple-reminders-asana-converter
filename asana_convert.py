@@ -108,19 +108,17 @@ def map_priority(apple_priority: str, language: str = 'en') -> str:
 
 def get_asana_fieldnames(language: str = 'en') -> List[str]:
     """Returns Asana CSV fieldnames in specified language"""
+    # Use simplified format that works better with Asana imports
+    # Removed "Assignee" and "Projects" fields per user request
     if language == 'de':
         return [
-            'Task ID', 'Created At', 'Completed At', 'Last Modified', 'Name',
-            'Section/Column', 'Assignee', 'Assignee Email', 'Start Date', 'Due Date',
-            'Tags', 'Notes', 'Projects', 'Parent task', 'Blocked By (Dependencies)',
-            'Blocking (Dependencies)', 'Priorität'  # German: Priority -> Priorität
+            'Name', 'Assignee Email', 'Due Date', 'Tags', 'Notes', 
+            'Section/Column', 'Priorität'
         ]
     else:
         return [
-            'Task ID', 'Created At', 'Completed At', 'Last Modified', 'Name',
-            'Section/Column', 'Assignee', 'Assignee Email', 'Start Date', 'Due Date',
-            'Tags', 'Notes', 'Projects', 'Parent task', 'Blocked By (Dependencies)',
-            'Blocking (Dependencies)', 'Priority'
+            'Name', 'Assignee Email', 'Due Date', 'Tags', 'Notes',
+            'Section/Column', 'Priority'
         ]
 
 
@@ -232,7 +230,7 @@ def convert_json_to_asana_row(json_data: Dict, default_assignee: Optional[str] =
         'Assignee': assignee_name,
         'Assignee Email': assignee_email,
         'Due Date': format_date(due_date),
-        'Tags': ', '.join(all_tags) if all_tags else '',  # Combined tags
+        'Tags': ', '.join(all_tags) if all_tags else '',  # Combined tags (will be imported as "Tags (importiert)")
         'Priority': map_priority(priority)
     }
     
@@ -283,7 +281,8 @@ def write_csv_file(filepath: str, rows: List[Dict], dry_run: bool = False, asana
         encoding = 'utf-8'
     
     with open(filepath, 'w', newline='', encoding=encoding) as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        # Use QUOTE_ALL for better Asana compatibility (like in their exports)
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -335,24 +334,15 @@ def convert_to_asana_format(reminders: List[Dict], default_assignee: Optional[st
         # Priority field name depends on language
         priority_field = 'Priorität' if language == 'de' else 'Priority'
         
-        # Main task row
+        # Main task row - simplified format for better Asana compatibility
+        # Removed "Assignee" and "Projects" fields per user request
         main_task = {
-            'Task ID': str(task_id_counter),
-            'Created At': datetime.now().strftime('%Y-%m-%d'),
-            'Completed At': '',
-            'Last Modified': datetime.now().strftime('%Y-%m-%d'),
             'Name': clean_title or title,
-            'Section/Column': format_section(list_name),
-            'Assignee': assignee_name,
             'Assignee Email': assignee_email,
-            'Start Date': '',
             'Due Date': format_date(due_date),
-            'Tags': ', '.join(all_tags) if all_tags else '',
+            'Tags': ', '.join(all_tags) if all_tags else '',  # Will be imported as "Tags (importiert)" for manual mapping
             'Notes': notes,
-            'Projects': project_name,
-            'Parent task': '',
-            'Blocked By (Dependencies)': '',
-            'Blocking (Dependencies)': '',
+            'Section/Column': format_section(list_name),
             priority_field: map_priority(priority, language)
         }
         
@@ -377,29 +367,19 @@ def convert_to_asana_format(reminders: List[Dict], default_assignee: Optional[st
         asana_rows.append(main_task)
         task_id_counter += 1
         
-        # Add subtasks
+        # Add subtasks - simplified format
         for subtask in subtasks:
-            subtask_row = {
-                'Task ID': str(task_id_counter),
-                'Created At': datetime.now().strftime('%Y-%m-%d'),
-                'Completed At': '',
-                'Last Modified': datetime.now().strftime('%Y-%m-%d'),
-                'Name': subtask.get('title', 'Untitled Subtask'),
-                'Section/Column': '',  # Subtasks don't have sections
-                'Assignee': assignee_name,
-                'Assignee Email': assignee_email,
-                'Start Date': '',
-                'Due Date': '',
-                'Tags': '',
-                'Notes': subtask.get('notes', ''),
-                'Projects': '',  # Subtasks inherit project from parent
-                'Parent task': clean_title or title,  # Reference parent by name
-                'Blocked By (Dependencies)': '',
-                'Blocking (Dependencies)': '',
-                priority_field: map_priority('Low', language)
-            }
-            asana_rows.append(subtask_row)
-            task_id_counter += 1
+            # For now, add subtasks as notes to the main task since the simplified format
+            # doesn't support the complex parent-child relationship fields
+            # We'll append subtask info to the main task's notes instead
+            subtask_info = f"📝 Subtask: {subtask.get('title', 'Untitled Subtask')}"
+            if subtask.get('notes'):
+                subtask_info += f" - {subtask.get('notes')}"
+            
+            if main_task['Notes']:
+                main_task['Notes'] += f"\n{subtask_info}"
+            else:
+                main_task['Notes'] = subtask_info
     
     return asana_rows
 
@@ -498,9 +478,8 @@ def process_single_file(json_path: str, output_path: str, default_assignee: Opti
                 write_csv_file(output_path, asana_rows, dry_run, asana_format=True, language=args.asana_language)
                 
                 if not dry_run and verbose:
-                    main_tasks = len([r for r in asana_rows if not r['Parent task']])
-                    subtasks = len([r for r in asana_rows if r['Parent task']])
-                    print(f"  ✓ Successfully converted {main_tasks} tasks with {subtasks} subtasks to: {output_path}")
+                    # Count based on rows (subtasks are now embedded in notes)
+                    print(f"  ✓ Successfully converted {len(asana_rows)} tasks to: {output_path}")
             else:
                 # Original format
                 write_csv_file(output_path, rows, dry_run)
@@ -535,9 +514,8 @@ def process_single_file(json_path: str, output_path: str, default_assignee: Opti
                 write_csv_file(output_path, asana_rows, dry_run, asana_format=True, language=args.asana_language)
                 
                 if not dry_run and verbose:
-                    main_tasks = len([r for r in asana_rows if not r['Parent task']])
-                    subtasks = len([r for r in asana_rows if r['Parent task']])
-                    print(f"  ✓ Successfully converted {main_tasks} tasks with {subtasks} subtasks to: {output_path}")
+                    # Count based on rows (subtasks are now embedded in notes)
+                    print(f"  ✓ Successfully converted {len(asana_rows)} tasks to: {output_path}")
             else:
                 # Original format
                 row = convert_json_to_asana_row(json_data, default_assignee)

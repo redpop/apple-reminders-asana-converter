@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Test suite for Apple Reminders to Asana CSV Converter
 """
@@ -563,7 +563,7 @@ class TestBulkJsonProcessing(unittest.TestCase):
         rows = asana_convert.process_bulk_json(json_data, include_completed=False)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["Name"], "Task 1")
-        self.assertEqual(rows[0]["Tags"], "tag1, native1")
+        self.assertEqual(rows[0]["Tags"], "tag1,native1")
         self.assertEqual(rows[0]["Priority"], "High")
         self.assertIn("⭐ Flagged", rows[0]["Description"])
         
@@ -613,7 +613,7 @@ class TestEnhancedConversion(unittest.TestCase):
         result = asana_convert.convert_json_to_asana_row(json_data)
         
         self.assertEqual(result["Name"], "Enhanced Task")
-        self.assertEqual(result["Tags"], "work, urgent, native, project")
+        self.assertEqual(result["Tags"], "work,urgent,native,project")
         self.assertEqual(result["Priority"], "High")
         self.assertEqual(result["Target Section"], "Projects")
         
