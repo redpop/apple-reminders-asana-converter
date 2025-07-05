@@ -1,202 +1,214 @@
 # Apple Reminders to Asana CSV Converter
 
-A Python tool to convert Apple Reminders JSON exports to Asana-compatible CSV format for easy import and project management migration.
+A Python tool to convert bulk Apple Reminders JSON exports to Asana-compatible CSV format with native subtasks support. Designed for seamless migration from Apple Reminders to Asana.
 
 ## Features
 
-- ✅ **Single file or batch processing** - Convert one file or entire directories
+- ✅ **Bulk JSON processing** - Process hundreds of reminders in one file
+- ✅ **Native Asana subtasks** - True subtask hierarchy in Asana
+- ✅ **Localization support** - German and English field names/priorities
 - ✅ **Smart task filtering** - Skip completed tasks by default (configurable)
-- ✅ **Tag extraction** - Automatically extracts hashtags from titles into separate tags field
-- ✅ **Custom fields support** - Uses Asana custom fields to avoid duplicate sections
-- ✅ **Date conversion** - Converts Apple's ISO format to Asana's MM/DD/YYYY format
-- ✅ **Priority mapping** - Maps Apple priorities to Asana priority levels
-- ✅ **Assignee support** - Optional assignee configuration with automatic name extraction
+- ✅ **Enhanced metadata** - Preserves flags, locations, URLs, reminders
+- ✅ **Tag extraction** - Hashtags from titles + native tags combined
+- ✅ **Priority mapping** - Maps German/English priorities to Asana values
+- ✅ **Assignee support** - Automatic name extraction from email
 - ✅ **Dry run mode** - Preview conversions without creating files
 
 ## Prerequisites
 
-- Python 3.6+
-- Apple Reminders export in JSON format
+### 1. Export Tool (Required)
+
+You need to export your Apple Reminders using the **"Backup Shortcut for Reminders"** iOS app:
+
+- **Download:** [Backup Shortcut for Reminders](https://www.icloud.com/shortcuts/f79f09bed78347f0a378560ecd0e4f05)
+- **Tutorial:** [Complete guide in German](https://janpedia.de/2024/09/16/backup-von-apple-erinnerungen-und-notizen-erstellen/)
+
+This shortcut exports all your reminders as a single comprehensive JSON file with:
+- All reminder lists and tasks
+- Subtasks and nested structure
+- Rich metadata (flags, locations, URLs, etc.)
+- Native tags and priorities
+- Complete task history
+
+### 2. Python Environment
+
+- Python 3.6+ (uses only standard library, no external dependencies)
 
 ## Installation
-
-1. Clone this repository:
 
 ```bash
 git clone https://github.com/yourusername/apple-reminders-asana-converter.git
 cd apple-reminders-asana-converter
 ```
 
-2. Install dependencies (optional, uses only Python standard library):
-
-```bash
-pip install -r requirements.txt
-```
-
-## How to Export from Apple Reminders
-
-### Option 1: Built-in Export (macOS)
-
-1. Open Apple Reminders on macOS
-2. Select the list you want to export
-3. Go to File → Export...
-4. Choose JSON format
-5. Save the file(s) to a folder
-
-### Option 2: Using apple-reminders-exporter (Recommended)
-
-For more comprehensive exports or if the built-in export doesn't work, use the [apple-reminders-exporter](https://github.com/Kylmakalle/apple-reminders-exporter) tool:
-
-1. Install the exporter tool
-2. Export all reminders to JSON format
-3. Use the generated JSON files with this converter
-
 ## Usage
 
-### Basic Examples
+### Recommended Workflow
 
 ```bash
-# Convert a single file
-python asana_convert.py -f reminder.json -o output.csv
+# German Asana with subtasks (recommended)
+python asana_convert.py -f reminders_export.json -o output.csv \
+  --asana-format --asana-language de \
+  --assignee "your.email@example.com" \
+  --project-name "Apple Erinnerungen Import"
 
-# Convert all JSON files in a directory to one CSV
-python asana_convert.py -d json_files/ -o asana_import.csv
+# English Asana with subtasks
+python asana_convert.py -f reminders_export.json -o output.csv \
+  --asana-format \
+  --assignee "your.email@example.com" \
+  --project-name "Imported Reminders"
 
-# Convert all files with separate CSV for each
-python asana_convert.py -d json_files/ --separate
+# Include completed tasks
+python asana_convert.py -f reminders_export.json -o all_tasks.csv \
+  --asana-format --include-completed
 
-# Set assignee for all tasks
-python asana_convert.py -d json_files/ -o tasks.csv --assignee "john.doe@company.com"
-
-# Include completed tasks (default: skip completed)
-python asana_convert.py -d json_files/ -o all_tasks.csv --include-completed
-
-# Dry run (preview without creating files)
-python asana_convert.py -d json_files/ --dry-run
+# Preview without creating files
+python asana_convert.py -f reminders_export.json \
+  --asana-format --dry-run -v
 ```
 
 ### Command Line Options
 
-| Option                | Description                                                  |
-| --------------------- | ------------------------------------------------------------ |
-| `-f, --file`          | Single JSON file to convert                                  |
-| `-d, --directory`     | Directory containing JSON files                              |
-| `-o, --output`        | Output CSV file name (default: asana_import.csv)             |
-| `--separate`          | Create separate CSV for each JSON file                       |
-| `--assignee`          | Email address for task assignee (e.g., john.doe@company.com) |
-| `--include-completed` | Include completed tasks in export                            |
-| `--dry-run`           | Preview conversion without creating files                    |
-| `-v, --verbose`       | Detailed output during conversion                            |
+| Option | Description |
+|--------|-------------|
+| `-f, --file` | JSON file to convert (bulk format recommended) |
+| `-o, --output` | Output CSV file (default: asana_import.csv) |
+| `--asana-format` | **Export with native Asana subtasks support (RECOMMENDED)** |
+| `--asana-language {en,de}` | Language for field names and priorities |
+| `--project-name` | Project name for Asana import |
+| `--assignee` | Email address for task assignee |
+| `--include-completed` | Include completed tasks in export |
+| `--dry-run` | Preview conversion without creating files |
+| `-v, --verbose` | Detailed output during conversion |
 
-## Setting Up Default Assignee
+## Asana Setup and Import
 
-### Option 1: Command Line (Recommended)
+### Step 1: Create Global Custom Fields
 
-```bash
-python asana_convert.py -d json_files/ --assignee "your.email@company.com"
+**For German Asana:**
+- Field name: **"Priorität"**
+- Type: Dropdown
+- Options: "Niedrig", "Mittel", "Hoch"
+
+**For English Asana:**
+- Field name: **"Priority"**
+- Type: Dropdown  
+- Options: "Low", "Medium", "High"
+
+### Step 2: Recommended Import Workflow
+
+1. **Create an "Import" project** in Asana for testing
+2. **Add the Priority/Priorität custom field** to this project
+3. **Import the CSV** into the Import project
+4. **Review tasks and subtasks** - they should nest automatically
+5. **Move tasks** to final destination projects
+6. **Clean up** the Import project for future use
+
+### Step 3: Import in Asana
+
+1. Open Asana → Navigate to your Import project
+2. Three-dots menu → "Import" → "CSV"
+3. Upload your CSV file (e.g., `asana_import.csv`)
+4. Map fields (should be automatic)
+5. Verify Priority field mapping
+6. Import - subtasks will nest under parent tasks automatically
+
+## Export Formats
+
+### Asana Format with Subtasks (--asana-format)
+
+When using `--asana-format`, you get:
+
+- **Native Asana subtasks** - True hierarchy, not just descriptions
+- **All 17 standard Asana fields** - Full compatibility
+- **Localized field names** - German "Priorität" or English "Priority"
+- **UTF-8 BOM encoding** - Perfect Excel compatibility
+- **Direct section assignment** - No custom field rules needed
+
+Example output structure:
+```
+Main Task: "Website redesign" (Priority: High)
+├─ Subtask: "Create wireframes"
+├─ Subtask: "Implement responsive layout"
+└─ Subtask: "SEO optimization"
 ```
 
-### Option 2: Modify Script (For Permanent Default)
+### Legacy Simple Format (original)
 
-Edit `asana_convert.py` and change line 121:
+Without `--asana-format`, you get the original simple format with "Target Section" custom fields.
 
-```python
-assignee_email = default_assignee or 'your.email@company.com'
-```
+## Data Processing
 
-## Asana Import Configuration
+### Enhanced Metadata Preservation
 
-### Required Custom Fields in Asana
+The converter preserves rich metadata from the Backup Shortcut export:
 
-Before importing, create these **global custom fields** in your Asana workspace:
+- **Flagged tasks** → ⭐ Flagged (in description)
+- **Reminders** → 🔔 Has Reminder (in description)
+- **Locations** → 📍 Location: Office (in description)
+- **URLs** → 🔗 URL: https://example.com (in description)
+- **Subtasks** → Native Asana subtasks with proper nesting
 
-1. **Priority**
+### Tag Processing
 
-   - Type: Single-select dropdown
-   - Options: Low, Medium, High
-
-2. **Target Section**
-   - Type: Text field
-   - Used to avoid duplicate sections during import
-
-### Setting Up Asana Rules (Important!)
-
-To automatically organize tasks into sections, create this rule in Asana:
-
-1. Go to your project → Rules → Create Rule
-2. **Trigger:** "When custom field changes"
-3. **Condition:** "Target Section is set to any value"
-4. **Action:** "Move task to section with same value as Target Section"
-
-This prevents Asana from creating duplicate sections during CSV import.
-
-## CSV Output Format
-
-The generated CSV contains these fields:
-
-| Field          | Description                               |
-| -------------- | ----------------------------------------- |
-| Name           | Task title (cleaned of hashtags)          |
-| Description    | Task notes/description                    |
-| Target Section | Target section (custom field)             |
-| Assignee       | Assignee name (auto-extracted from email) |
-| Assignee Email | Assignee email address                    |
-| Due Date       | Due date in MM/DD/YYYY format             |
-| Tags           | Hashtags extracted from title             |
-| Priority       | Priority level (Low/Medium/High)           |
-
-## Data Processing Details
-
-### Tag Extraction
-
-Hashtags in titles like `"Website update #webdev #urgent"` become:
-
-- **Name:** "Website update"
-- **Tags:** "webdev, urgent"
+Combined tag extraction:
+- **Hashtags from titles**: `"Task #urgent #work"` → Tags: "urgent, work"
+- **Native Apple tags**: `["project", "important"]` → Combined with hashtags
+- **Deduplication**: Case-insensitive duplicate removal
 
 ### Priority Mapping
 
-| Apple Priority (German) | Apple Priority (English) | Asana Priority |
-| ----------------------- | ------------------------ | -------------- |
-| Ohne                    | None                     | Low            |
-| Niedrig                 | Low                      | Low            |
-| Mittel                  | Medium                   | Medium         |
-| Hoch                    | High                     | High           |
+| Apple (German) | Apple (English) | Asana (German) | Asana (English) |
+|----------------|-----------------|----------------|-----------------|
+| Ohne | None | Niedrig | Low |
+| Gering | Low | Niedrig | Low |
+| Mittel | Medium | Mittel | Medium |
+| Hoch | High | Hoch | High |
 
-### Date Conversion
+## Testing
 
-- **Apple:** `2025-12-31T23:59:59Z`
-- **Asana:** `12/31/2025`
+Test with the included sample file:
+
+```bash
+# Test with sample data
+python asana_convert.py -f examples/sample_bulk_reminders.json \
+  -o test.csv --asana-format --asana-language de -v
+
+# Dry run test
+python asana_convert.py -f examples/sample_bulk_reminders.json \
+  --asana-format --dry-run -v
+```
 
 ## Troubleshooting
 
-### "No JSON files found"
+### Export Issues
+- **Use only the Backup Shortcut** - Other export methods are outdated
+- **Run shortcut on iOS device** - Works best on iPhone/iPad
+- **Check JSON file size** - Large exports (500+ reminders) may take time
 
-- Ensure your JSON files have `.json` extension
-- Check the directory path is correct
+### Import Issues  
+- **Priority field not mapping** → Ensure global custom field exists
+- **Subtasks not nesting** → Check parent task names match exactly
+- **Encoding issues** → Use `--asana-format` for UTF-8 BOM
+- **Missing sections** → Tasks import to project level, use sections within project
 
-### "Invalid JSON" errors
+### Performance
+- **Large files (1000+ reminders)** → Use `--dry-run` first to estimate
+- **Memory usage** → Script handles 5000+ reminders efficiently
+- **Processing time** → ~1-2 seconds per 100 reminders
 
-- Verify the JSON files are valid Apple Reminders exports
-- Some files might be corrupted during export
+## Legacy Support
 
-### Asana import shows duplicate sections
+The tool maintains compatibility with old single-reminder JSON files from apple-reminders-exporter, but these are marked as `[LEGACY]` in the help text.
 
-- Make sure you created the "Target Section" custom field
-- Set up the Asana rule as described above
-
-### Special characters in file names
-
-- The script handles Unicode characters automatically
-- No action needed for German umlauts or special characters
+**Recommendation:** Switch to the Backup Shortcut for the best experience.
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test with sample data
-5. Submit a pull request
+2. Create a feature branch  
+3. Test with sample data
+4. Submit a pull request
 
 ## License
 
@@ -204,9 +216,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
-If you encounter issues:
+For issues:
 
-1. Check the troubleshooting section above
-2. Run with `--verbose` flag for detailed output
-3. Try `--dry-run` to preview the conversion
-4. Create an issue on GitHub with sample data (anonymized)
+1. Try with `--verbose` and `--dry-run` flags
+2. Test with the sample file first
+3. Check the Backup Shortcut export is valid JSON
+4. Create a GitHub issue with anonymized sample data

@@ -1,0 +1,136 @@
+{
+  "reminders": [
+    {
+      "title": "Website redesign #webdev #design #urgent",
+      "notes": "Update the company website with new branding\n- Modern design\n- Mobile responsive\n- SEO optimization",
+      "list": "Work Projects",
+      "due_date": "2025-03-15T09:00:00Z",
+      "prio": "Hoch",
+      "done": "Nein",
+      "tags": ["development", "priority"],
+      "flagged": "Ja",
+      "has_reminder": "Ja",
+      "reminder_location": "Office",
+      "url": "https://company.com/current-site",
+      "subtasks": [
+        {
+          "title": "Create wireframes and mockups",
+          "notes": "Use Figma for design mockups"
+        },
+        {
+          "title": "Implement responsive layout",
+          "notes": "Test on mobile devices"
+        },
+        {
+          "title": "SEO optimization and testing",
+          "notes": "Use Google PageSpeed insights"
+        }
+      ]
+    },
+    {
+      "title": "Buy groceries #shopping",
+      "notes": "Weekly grocery shopping for the family",
+      "list": "Personal",
+      "due_date": "2025-02-08T18:00:00Z",
+      "prio": "Mittel",
+      "done": "Nein",
+      "tags": ["family", "weekly"],
+      "flagged": "Nein",
+      "has_reminder": "Ja",
+      "reminder_location": "Supermarket",
+      "url": "",
+      "subtasks": [
+        {
+          "title": "Fresh vegetables and fruits",
+          "notes": "Organic if possible"
+        },
+        {
+          "title": "Dairy products",
+          "notes": "Milk, cheese, yogurt"
+        }
+      ]
+    },
+    {
+      "title": "Team meeting preparation",
+      "notes": "Prepare agenda and materials for quarterly team meeting",
+      "list": "Work Projects", 
+      "due_date": "2025-02-10T14:00:00Z",
+      "prio": "Hoch",
+      "done": "Nein",
+      "tags": ["meeting", "quarterly"],
+      "flagged": "Ja",
+      "has_reminder": "Ja",
+      "reminder_location": "Conference Room A",
+      "url": "https://company.com/team-docs",
+      "subtasks": []
+    },
+    {
+      "title": "Book vacation #travel #family",
+      "notes": "Plan summer vacation for the family\n\nDestination options:\n- Italy (Tuscany)\n- Greece (Santorini)\n- Spain (Barcelona)",
+      "list": "Personal",
+      "due_date": "2025-04-01T12:00:00Z",
+      "prio": "Gering",
+      "done": "Nein",
+      "tags": ["vacation", "planning"],
+      "flagged": "Nein",
+      "has_reminder": "Nein",
+      "reminder_location": "",
+      "url": "https://booking.com/family-deals",
+      "subtasks": [
+        {
+          "title": "Research destinations and prices",
+          "notes": "Compare flight and hotel prices"
+        },
+        {
+          "title": "Check passport expiration dates",
+          "notes": "Renew if needed before June"
+        },
+        {
+          "title": "Book flights and accommodation",
+          "notes": "Use travel insurance"
+        }
+      ]
+    },
+    {
+      "title": "Completed example task",
+      "notes": "This task is completed and should be skipped by default",
+      "list": "Work Projects",
+      "due_date": "2025-01-15T10:00:00Z",
+      "prio": "Mittel",
+      "done": "Ja",
+      "tags": ["completed"],
+      "flagged": "Nein",
+      "has_reminder": "Nein",
+      "reminder_location": "",
+      "url": "",
+      "subtasks": []
+    },
+    {
+      "title": "Learn Python automation #programming #learning",
+      "notes": "Study Python for task automation and productivity\n\nResources:\n- Python.org documentation\n- Automate the Boring Stuff book\n- Practice projects",
+      "list": "Personal Development",
+      "due_date": "2025-06-30T23:59:59Z",
+      "prio": "Mittel",
+      "done": "Nein",
+      "tags": ["education", "programming", "self-improvement"],
+      "flagged": "Ja",
+      "has_reminder": "Nein",
+      "reminder_location": "",
+      "url": "https://automatetheboringstuff.com",
+      "subtasks": [
+        {
+          "title": "Read Automate the Boring Stuff chapters 1-5",
+          "notes": "Focus on basics and file handling"
+        },
+        {
+          "title": "Build a file organizer script",
+          "notes": "Sort downloads folder automatically"
+        },
+        {
+          "title": "Create email automation script",
+          "notes": "Send weekly reports automatically"
+        }
+      ]
+    }
+  ]
+}

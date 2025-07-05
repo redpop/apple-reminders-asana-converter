@@ -472,5 +472,188 @@ class TestProcessDirectory(unittest.TestCase):
                 self.assertEqual(len(rows), 2)
 
 
+class TestTagCombining(unittest.TestCase):
+    """Test tag combining functionality"""
+    
+    def test_combine_tags_no_duplicates(self):
+        """Test combining tags without duplicates"""
+        hashtags = ['webdev', 'urgent']
+        native_tags = ['development', 'project']
+        result = asana_convert.combine_tags(hashtags, native_tags)
+        self.assertEqual(result, ['webdev', 'urgent', 'development', 'project'])
+    
+    def test_combine_tags_with_duplicates(self):
+        """Test combining tags with case-insensitive deduplication"""
+        hashtags = ['webdev', 'urgent']
+        native_tags = ['development', 'WEBDEV', 'project']
+        result = asana_convert.combine_tags(hashtags, native_tags)
+        self.assertEqual(result, ['webdev', 'urgent', 'development', 'project'])
+    
+    def test_combine_tags_empty_lists(self):
+        """Test combining empty tag lists"""
+        result = asana_convert.combine_tags([], [])
+        self.assertEqual(result, [])
+    
+    def test_combine_tags_one_empty(self):
+        """Test combining when one list is empty"""
+        hashtags = ['webdev', 'urgent']
+        result1 = asana_convert.combine_tags(hashtags, [])
+        result2 = asana_convert.combine_tags([], hashtags)
+        self.assertEqual(result1, ['webdev', 'urgent'])
+        self.assertEqual(result2, ['webdev', 'urgent'])
+
+
+class TestJsonFormatDetection(unittest.TestCase):
+    """Test JSON format detection"""
+    
+    def test_detect_bulk_format(self):
+        """Test detection of bulk JSON format"""
+        json_data = {"reminders": [{"title": "test"}]}
+        result = asana_convert.detect_json_format(json_data)
+        self.assertEqual(result, "bulk")
+    
+    def test_detect_single_format_old(self):
+        """Test detection of single format (old apple-reminders-exporter)"""
+        json_data = {"Title": "test", "Notes": "description"}
+        result = asana_convert.detect_json_format(json_data)
+        self.assertEqual(result, "single")
+    
+    def test_detect_single_format_new(self):
+        """Test detection of single format (new backup shortcut)"""
+        json_data = {"title": "test", "notes": "description"}
+        result = asana_convert.detect_json_format(json_data)
+        self.assertEqual(result, "single")
+    
+    def test_detect_unknown_format(self):
+        """Test detection of unknown format"""
+        json_data = {"unknown": "data"}
+        result = asana_convert.detect_json_format(json_data)
+        self.assertEqual(result, "unknown")
+
+
+class TestBulkJsonProcessing(unittest.TestCase):
+    """Test bulk JSON processing functionality"""
+    
+    def test_process_bulk_json_new_format(self):
+        """Test processing bulk JSON with new format"""
+        json_data = {
+            "reminders": [
+                {
+                    "title": "Task 1 #tag1",
+                    "notes": "Description 1",
+                    "list": "Work",
+                    "prio": "Hoch",
+                    "done": "Nein",
+                    "tags": ["native1"],
+                    "flagged": "Ja",
+                    "has_reminder": "Nein"
+                },
+                {
+                    "title": "Task 2",
+                    "notes": "Description 2", 
+                    "list": "Personal",
+                    "prio": "Mittel",
+                    "done": "Ja",  # Completed task
+                    "tags": []
+                }
+            ]
+        }
+        
+        # Test without including completed
+        rows = asana_convert.process_bulk_json(json_data, include_completed=False)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["Name"], "Task 1")
+        self.assertEqual(rows[0]["Tags"], "tag1, native1")
+        self.assertEqual(rows[0]["Priority"], "High")
+        self.assertIn("⭐ Flagged", rows[0]["Description"])
+        
+        # Test with including completed
+        rows = asana_convert.process_bulk_json(json_data, include_completed=True)
+        self.assertEqual(len(rows), 2)
+    
+    def test_process_bulk_json_old_format(self):
+        """Test processing bulk JSON with old format mixed in"""
+        json_data = {
+            "reminders": [
+                {
+                    "Title": "Old Format Task",
+                    "Notes": "Old description",
+                    "List": "Work",
+                    "Priority": "High",
+                    "Is Completed": False
+                }
+            ]
+        }
+        
+        rows = asana_convert.process_bulk_json(json_data)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["Name"], "Old Format Task")
+        self.assertEqual(rows[0]["Priority"], "High")
+
+
+class TestEnhancedConversion(unittest.TestCase):
+    """Test enhanced JSON to Asana conversion"""
+    
+    def test_convert_new_format_with_metadata(self):
+        """Test converting new format with all metadata fields"""
+        json_data = {
+            "title": "Enhanced Task #work #urgent",
+            "notes": "Base description",
+            "list": "Projects",
+            "prio": "Hoch",
+            "done": "Nein",
+            "tags": ["native", "project"],
+            "flagged": "Ja",
+            "has_reminder": "Ja",
+            "reminder_location": "Office",
+            "url": "https://example.com",
+            "subtasks": [{"title": "Sub 1"}, {"title": "Sub 2"}]
+        }
+        
+        result = asana_convert.convert_json_to_asana_row(json_data)
+        
+        self.assertEqual(result["Name"], "Enhanced Task")
+        self.assertEqual(result["Tags"], "work, urgent, native, project")
+        self.assertEqual(result["Priority"], "High")
+        self.assertEqual(result["Target Section"], "Projects")
+        
+        # Check additional metadata in description
+        description = result["Description"]
+        self.assertIn("Base description", description)
+        self.assertIn("⭐ Flagged", description)
+        self.assertIn("🔔 Has Reminder", description)
+        self.assertIn("📍 Location: Office", description)
+        self.assertIn("🔗 URL: https://example.com", description)
+        self.assertIn("📝 2 subtasks", description)
+    
+    def test_convert_backward_compatibility(self):
+        """Test that old format still works"""
+        json_data = {
+            "Title": "Old Task #legacy",
+            "Notes": "Old description",
+            "List": "Work",
+            "Priority": "Medium",
+            "Is Completed": False
+        }
+        
+        result = asana_convert.convert_json_to_asana_row(json_data)
+        
+        self.assertEqual(result["Name"], "Old Task")
+        self.assertEqual(result["Tags"], "legacy")
+        self.assertEqual(result["Priority"], "Medium")
+        self.assertEqual(result["Description"], "Old description")
+
+
+class TestNewPriorityMapping(unittest.TestCase):
+    """Test enhanced priority mapping"""
+    
+    def test_map_priority_german_backup_format(self):
+        """Test German priority mapping for Backup Shortcut format"""
+        self.assertEqual(asana_convert.map_priority("Ohne"), "Low")
+        self.assertEqual(asana_convert.map_priority("Gering"), "Low")
+        self.assertEqual(asana_convert.map_priority("Mittel"), "Medium")
+        self.assertEqual(asana_convert.map_priority("Hoch"), "High")
+
+
 if __name__ == '__main__':
     unittest.main()

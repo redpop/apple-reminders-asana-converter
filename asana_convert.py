@@ -22,31 +22,34 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Convert single file
-  python asana_convert.py -f reminder.json -o output.csv
+  # Convert bulk JSON file (recommended - from Backup Shortcut for Reminders)
+  python asana_convert.py -f reminders_export.json -o output.csv --asana-format --asana-language de
   
-  # Convert all files in directory (single CSV)
-  python asana_convert.py -d json/ -o asana_import.csv
+  # Convert bulk JSON with custom assignee and project
+  python asana_convert.py -f reminders_export.json -o asana_tasks.csv --asana-format --assignee "user@example.com" --project-name "My Tasks"
   
-  # Convert all files in directory (separate CSVs)
-  python asana_convert.py -d json/ --separate
+  # Convert with German localization for Asana
+  python asana_convert.py -f reminders_export.json -o tasks_de.csv --asana-format --asana-language de --assignee "user@example.com"
   
-  # With assignee
-  python asana_convert.py -d json/ -o asana_import.csv --assignee "john.doe@company.com"
+  # Legacy: Convert single reminder file (apple-reminders-exporter format)
+  python asana_convert.py -f single_reminder.json -o output.csv
   
-  # Include completed tasks (default: only open tasks)
-  python asana_convert.py -d json/ -o all_tasks.csv --include-completed
+  # Legacy: Directory processing (for multiple single-reminder files)
+  python asana_convert.py -d json_files/ -o combined.csv --separate
         """
     )
     
     input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument('-f', '--file', type=str, help='Single JSON file to convert')
-    input_group.add_argument('-d', '--directory', type=str, help='Directory containing JSON files')
+    input_group.add_argument('-f', '--file', type=str, help='JSON file to convert (bulk format from Backup Shortcut recommended)')
+    input_group.add_argument('-d', '--directory', type=str, help='[LEGACY] Directory containing single-reminder JSON files')
     
     parser.add_argument('-o', '--output', type=str, help='Output CSV file (default: asana_import.csv)')
-    parser.add_argument('--separate', action='store_true', help='Create separate CSV files for each JSON')
+    parser.add_argument('--separate', action='store_true', help='[LEGACY] Create separate CSV files for each JSON in directory')
     parser.add_argument('--assignee', type=str, help='Email address for assignee (e.g. john.doe@company.com)')
     parser.add_argument('--include-completed', action='store_true', help='Include completed tasks (default: only open tasks)')
+    parser.add_argument('--asana-format', action='store_true', help='Export in Asana-compatible format with subtasks support (RECOMMENDED)')
+    parser.add_argument('--project-name', type=str, default='Imported Reminders', help='Project name for Asana format (default: Imported Reminders)')
+    parser.add_argument('--asana-language', type=str, choices=['en', 'de'], default='en', help='Language for Asana field names and values (en/de, default: en)')
     parser.add_argument('--dry-run', action='store_true', help='Test run without writing files')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     
@@ -71,22 +74,54 @@ def format_date(date_string: str) -> str:
         return ''
 
 
-def map_priority(apple_priority: str) -> str:
+def map_priority(apple_priority: str, language: str = 'en') -> str:
     """Converts Apple priorities to Asana priorities (for global custom field)"""
+    # First map Apple to standard priority
     priority_map = {
-        # German Apple Reminders
+        # German Apple Reminders (Backup Shortcut format)
         'Ohne': 'Low',
+        'Gering': 'Low',
         'Niedrig': 'Low', 
         'Mittel': 'Medium',
         'Hoch': 'High',
-        # English Apple Reminders
+        # English Apple Reminders (apple-reminders-exporter format)
         'None': 'Low',
         'Low': 'Low',
         'Medium': 'Medium', 
         'High': 'High',
         '': 'Low'  # Default
     }
-    return priority_map.get(apple_priority, 'Low')
+    
+    standard_priority = priority_map.get(apple_priority, 'Low')
+    
+    # Convert to target language
+    if language == 'de':
+        german_map = {
+            'Low': 'Niedrig',
+            'Medium': 'Mittel',
+            'High': 'Hoch'
+        }
+        return german_map.get(standard_priority, 'Niedrig')
+    else:
+        return standard_priority
+
+
+def get_asana_fieldnames(language: str = 'en') -> List[str]:
+    """Returns Asana CSV fieldnames in specified language"""
+    if language == 'de':
+        return [
+            'Task ID', 'Created At', 'Completed At', 'Last Modified', 'Name',
+            'Section/Column', 'Assignee', 'Assignee Email', 'Start Date', 'Due Date',
+            'Tags', 'Notes', 'Projects', 'Parent task', 'Blocked By (Dependencies)',
+            'Blocking (Dependencies)', 'Priorität'  # German: Priority -> Priorität
+        ]
+    else:
+        return [
+            'Task ID', 'Created At', 'Completed At', 'Last Modified', 'Name',
+            'Section/Column', 'Assignee', 'Assignee Email', 'Start Date', 'Due Date',
+            'Tags', 'Notes', 'Projects', 'Parent task', 'Blocked By (Dependencies)',
+            'Blocking (Dependencies)', 'Priority'
+        ]
 
 
 def extract_tags_from_title(title: str) -> Tuple[str, List[str]]:
@@ -97,6 +132,22 @@ def extract_tags_from_title(title: str) -> Tuple[str, List[str]]:
     tags = re.findall(r'#(\w+)', title)
     clean_title = re.sub(r'\s*#\w+', '', title).strip()
     return clean_title, tags
+
+
+def combine_tags(hashtags: List[str], native_tags: List[str]) -> List[str]:
+    """
+    Combines hashtags from title with native tags array, removing duplicates
+    Returns merged list of unique tags
+    """
+    all_tags = hashtags + native_tags
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_tags = []
+    for tag in all_tags:
+        if tag.lower() not in seen:
+            seen.add(tag.lower())
+            unique_tags.append(tag)
+    return unique_tags
 
 
 def format_section(list_name: str) -> str:
@@ -115,13 +166,50 @@ def format_section(list_name: str) -> str:
     return list_name
 
 
+def detect_json_format(json_data: Dict) -> str:
+    """
+    Detects the format of the JSON data
+    Returns 'bulk' for {"reminders": [...]} format or 'single' for individual reminder
+    """
+    if 'reminders' in json_data and isinstance(json_data['reminders'], list):
+        return 'bulk'
+    elif 'Title' in json_data or 'title' in json_data:
+        return 'single'
+    else:
+        return 'unknown'
+
+
 def convert_json_to_asana_row(json_data: Dict, default_assignee: Optional[str] = None) -> Dict:
     """
     Converts a single JSON row to Asana CSV format
+    Supports both old format (apple-reminders-exporter) and new format (Backup Shortcut)
     """
-    # Extract tags from title
-    title = json_data.get('Title', '')
-    clean_title, tags = extract_tags_from_title(title)
+    # Detect format and normalize field access
+    is_old_format = 'Title' in json_data  # Old format uses capitalized keys
+    
+    # Extract title and handle both formats
+    if is_old_format:
+        title = json_data.get('Title', '')
+        notes = json_data.get('Notes', '')
+        list_name = json_data.get('List', '')
+        due_date = json_data.get('Due Date', '')
+        priority = json_data.get('Priority', '')
+        is_completed = json_data.get('Is Completed', False)
+        native_tags = []  # Old format doesn't have native tags
+    else:
+        title = json_data.get('title', '')
+        notes = json_data.get('notes', '')
+        list_name = json_data.get('list', '')
+        due_date = json_data.get('due_date', '')
+        priority = json_data.get('prio', '')
+        is_completed = json_data.get('done', '') == 'Ja'  # German: "Ja" = Yes
+        native_tags = json_data.get('tags', [])
+    
+    # Extract hashtags from title
+    clean_title, hashtags = extract_tags_from_title(title)
+    
+    # Combine hashtags and native tags
+    all_tags = combine_tags(hashtags, native_tags)
     
     # Basic mapping - only required fields
     assignee_email = default_assignee or ''
@@ -139,44 +227,232 @@ def convert_json_to_asana_row(json_data: Dict, default_assignee: Optional[str] =
     
     row = {
         'Name': clean_title or title,  # If no tags, use original title
-        'Description': json_data.get('Notes', ''),
-        'Target Section': format_section(json_data.get('List', '')),  # As custom field
+        'Description': notes,
+        'Target Section': format_section(list_name),  # As custom field
         'Assignee': assignee_name,
         'Assignee Email': assignee_email,
-        'Due Date': format_date(json_data.get('Due Date', '')),
-        'Tags': ', '.join(tags) if tags else '',  # Tags extracted from title
-        'Priority': map_priority(json_data.get('Priority', ''))
+        'Due Date': format_date(due_date),
+        'Tags': ', '.join(all_tags) if all_tags else '',  # Combined tags
+        'Priority': map_priority(priority)
     }
     
-    # Tags are now in separate Tags field, not in Description
+    # Add additional fields for new format if available
+    if not is_old_format:
+        # Additional metadata we could include in description or custom fields
+        additional_info = []
+        if json_data.get('flagged', '') == 'Ja':
+            additional_info.append('⭐ Flagged')
+        if json_data.get('has_reminder', '') == 'Ja':
+            additional_info.append('🔔 Has Reminder')
+        if json_data.get('reminder_location'):
+            additional_info.append(f'📍 Location: {json_data.get("reminder_location")}')
+        if json_data.get('url'):
+            additional_info.append(f'🔗 URL: {json_data.get("url")}')
+        if json_data.get('subtasks'):
+            subtask_count = len(json_data.get('subtasks', []))
+            additional_info.append(f'📝 {subtask_count} subtasks')
+        
+        # Append additional info to description if present
+        if additional_info:
+            if row['Description']:
+                row['Description'] += '\n\n' + '\n'.join(additional_info)
+            else:
+                row['Description'] = '\n'.join(additional_info)
     
     return row
 
 
-def write_csv_file(filepath: str, rows: List[Dict], dry_run: bool = False):
+def write_csv_file(filepath: str, rows: List[Dict], dry_run: bool = False, asana_format: bool = False, language: str = 'en'):
     """Writes the CSV file with converted data"""
     if dry_run:
         print(f"[DRY RUN] Would write {len(rows)} rows to {filepath}")
         return
     
-    # Asana CSV header - uses existing Asana field names
-    # "Priority" and "Target Section" are global custom fields
-    # "Target Section" prevents the problem of duplicate sections during import
-    fieldnames = [
-        'Name', 'Description', 'Target Section', 'Assignee', 'Assignee Email',
-        'Due Date', 'Tags', 'Priority'
-    ]
+    if asana_format:
+        # Asana-compatible format with subtasks support
+        fieldnames = get_asana_fieldnames(language)
+        encoding = 'utf-8-sig'  # BOM for Excel compatibility
+    else:
+        # Original simple format - uses custom fields
+        # "Priority" and "Target Section" are global custom fields
+        # "Target Section" prevents the problem of duplicate sections during import
+        fieldnames = [
+            'Name', 'Description', 'Target Section', 'Assignee', 'Assignee Email',
+            'Due Date', 'Tags', 'Priority'
+        ]
+        encoding = 'utf-8'
     
-    with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(filepath, 'w', newline='', encoding=encoding) as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
 
+def convert_to_asana_format(reminders: List[Dict], default_assignee: Optional[str] = None, 
+                           project_name: str = "Imported Reminders", language: str = 'en') -> List[Dict]:
+    """
+    Converts reminders to Asana-compatible format with subtasks support
+    Returns list of rows including main tasks and subtasks
+    """
+    asana_rows = []
+    task_id_counter = 1210720000000000  # Start with a reasonable ID
+    
+    for reminder in reminders:
+        # Get basic task info
+        is_old_format = 'Title' in reminder
+        if is_old_format:
+            title = reminder.get('Title', '')
+            notes = reminder.get('Notes', '')
+            list_name = reminder.get('List', '')
+            due_date = reminder.get('Due Date', '')
+            priority = reminder.get('Priority', '')
+            native_tags = []
+            subtasks = []
+        else:
+            title = reminder.get('title', '')
+            notes = reminder.get('notes', '')
+            list_name = reminder.get('list', '')
+            due_date = reminder.get('due_date', '')
+            priority = reminder.get('prio', '')
+            native_tags = reminder.get('tags', [])
+            subtasks = reminder.get('subtasks', [])
+        
+        # Extract hashtags and clean title
+        clean_title, hashtags = extract_tags_from_title(title)
+        all_tags = combine_tags(hashtags, native_tags)
+        
+        # Prepare assignee info
+        assignee_email = default_assignee or ''
+        assignee_name = ''
+        if assignee_email:
+            local_part = assignee_email.split('@')[0]
+            if '.' in local_part:
+                name_parts = local_part.split('.')
+                assignee_name = ' '.join(part.capitalize() for part in name_parts)
+            else:
+                assignee_name = local_part.capitalize()
+        
+        # Priority field name depends on language
+        priority_field = 'Priorität' if language == 'de' else 'Priority'
+        
+        # Main task row
+        main_task = {
+            'Task ID': str(task_id_counter),
+            'Created At': datetime.now().strftime('%Y-%m-%d'),
+            'Completed At': '',
+            'Last Modified': datetime.now().strftime('%Y-%m-%d'),
+            'Name': clean_title or title,
+            'Section/Column': format_section(list_name),
+            'Assignee': assignee_name,
+            'Assignee Email': assignee_email,
+            'Start Date': '',
+            'Due Date': format_date(due_date),
+            'Tags': ', '.join(all_tags) if all_tags else '',
+            'Notes': notes,
+            'Projects': project_name,
+            'Parent task': '',
+            'Blocked By (Dependencies)': '',
+            'Blocking (Dependencies)': '',
+            priority_field: map_priority(priority, language)
+        }
+        
+        # Add enhanced metadata to notes for new format
+        if not is_old_format:
+            additional_info = []
+            if reminder.get('flagged', '') == 'Ja':
+                additional_info.append('⭐ Flagged')
+            if reminder.get('has_reminder', '') == 'Ja':
+                additional_info.append('🔔 Has Reminder')
+            if reminder.get('reminder_location'):
+                additional_info.append(f'📍 Location: {reminder.get("reminder_location")}')
+            if reminder.get('url'):
+                additional_info.append(f'🔗 URL: {reminder.get("url")}')
+            
+            if additional_info:
+                if main_task['Notes']:
+                    main_task['Notes'] += '\n\n' + '\n'.join(additional_info)
+                else:
+                    main_task['Notes'] = '\n'.join(additional_info)
+        
+        asana_rows.append(main_task)
+        task_id_counter += 1
+        
+        # Add subtasks
+        for subtask in subtasks:
+            subtask_row = {
+                'Task ID': str(task_id_counter),
+                'Created At': datetime.now().strftime('%Y-%m-%d'),
+                'Completed At': '',
+                'Last Modified': datetime.now().strftime('%Y-%m-%d'),
+                'Name': subtask.get('title', 'Untitled Subtask'),
+                'Section/Column': '',  # Subtasks don't have sections
+                'Assignee': assignee_name,
+                'Assignee Email': assignee_email,
+                'Start Date': '',
+                'Due Date': '',
+                'Tags': '',
+                'Notes': subtask.get('notes', ''),
+                'Projects': '',  # Subtasks inherit project from parent
+                'Parent task': clean_title or title,  # Reference parent by name
+                'Blocked By (Dependencies)': '',
+                'Blocking (Dependencies)': '',
+                priority_field: map_priority('Low', language)
+            }
+            asana_rows.append(subtask_row)
+            task_id_counter += 1
+    
+    return asana_rows
+
+
+def process_bulk_json(json_data: Dict, default_assignee: Optional[str] = None, 
+                      include_completed: bool = False, verbose: bool = False) -> List[Dict]:
+    """
+    Processes bulk JSON format with {"reminders": [...]} structure
+    Returns list of converted Asana rows
+    """
+    if 'reminders' not in json_data:
+        raise ValueError("Bulk JSON must contain 'reminders' array")
+    
+    reminders = json_data['reminders']
+    converted_rows = []
+    skipped_count = 0
+    
+    for i, reminder in enumerate(reminders, 1):
+        # Check completion status based on format
+        is_completed = False
+        title = ''
+        
+        if 'Title' in reminder:  # Old format
+            is_completed = reminder.get('Is Completed', False)
+            title = reminder.get('Title', 'Unknown')
+        else:  # New format
+            is_completed = reminder.get('done', '') == 'Ja'
+            title = reminder.get('title', 'Unknown')
+        
+        # Skip completed tasks by default (unless explicitly requested)
+        if not include_completed and is_completed:
+            if verbose:
+                print(f"  ⏭ Skipping completed task [{i}/{len(reminders)}]: {title}")
+            skipped_count += 1
+            continue
+        
+        # Convert to Asana format
+        row = convert_json_to_asana_row(reminder, default_assignee)
+        converted_rows.append(row)
+        
+        if verbose:
+            print(f"  ✓ Converted [{i}/{len(reminders)}]: {title}")
+    
+    if verbose and skipped_count > 0:
+        print(f"  📊 Processed {len(converted_rows)} tasks, skipped {skipped_count} completed tasks")
+    
+    return converted_rows
+
+
 def process_single_file(json_path: str, output_path: str, default_assignee: Optional[str] = None, 
                        include_completed: bool = False, dry_run: bool = False, verbose: bool = False) -> bool:
     """
-    Processes a single JSON file
+    Processes a single JSON file (supports both single reminder and bulk formats)
     Returns True if successful, False on error
     """
     try:
@@ -186,20 +462,93 @@ def process_single_file(json_path: str, output_path: str, default_assignee: Opti
         with open(json_path, 'r', encoding='utf-8') as f:
             json_data = json.load(f)
         
-        # Skip completed tasks by default (unless explicitly requested)
-        if not include_completed and json_data.get('Is Completed', False):
+        # Detect format
+        format_type = detect_json_format(json_data)
+        
+        if format_type == 'bulk':
+            # Process bulk JSON with multiple reminders
             if verbose:
-                print(f"  ⏭ Skipping completed task: {json_data.get('Title', 'Unknown')}")
-            return True  # Count as successful, but don't process
+                print(f"  📦 Detected bulk format with {len(json_data.get('reminders', []))} reminders")
+            
+            rows = process_bulk_json(json_data, default_assignee, include_completed, verbose)
+            
+            if not rows:
+                if verbose:
+                    print(f"  ℹ️ No tasks to process (all completed and --include-completed not set)")
+                return True
+            
+            # Convert to Asana format if requested
+            if hasattr(args, 'asana_format') and args.asana_format:
+                if verbose:
+                    print(f"  🔄 Converting to Asana format with subtasks...")
+                # Filter to get original reminder objects for Asana conversion
+                filtered_reminders = []
+                for i, reminder in enumerate(json_data['reminders']):
+                    # Check completion status
+                    is_completed = False
+                    if 'Title' in reminder:
+                        is_completed = reminder.get('Is Completed', False)
+                    else:
+                        is_completed = reminder.get('done', '') == 'Ja'
+                    
+                    if include_completed or not is_completed:
+                        filtered_reminders.append(reminder)
+                
+                asana_rows = convert_to_asana_format(filtered_reminders, default_assignee, args.project_name, args.asana_language)
+                write_csv_file(output_path, asana_rows, dry_run, asana_format=True, language=args.asana_language)
+                
+                if not dry_run and verbose:
+                    main_tasks = len([r for r in asana_rows if not r['Parent task']])
+                    subtasks = len([r for r in asana_rows if r['Parent task']])
+                    print(f"  ✓ Successfully converted {main_tasks} tasks with {subtasks} subtasks to: {output_path}")
+            else:
+                # Original format
+                write_csv_file(output_path, rows, dry_run)
+            
+            if not dry_run and verbose:
+                print(f"  ✓ Successfully converted {len(rows)} tasks to: {output_path}")
         
-        # Convert to Asana format
-        row = convert_json_to_asana_row(json_data, default_assignee)
+        elif format_type == 'single':
+            # Process single reminder (original logic)
+            # Check completion status based on format
+            is_completed = False
+            title = ''
+            
+            if 'Title' in json_data:  # Old format
+                is_completed = json_data.get('Is Completed', False)
+                title = json_data.get('Title', 'Unknown')
+            else:  # New format single reminder
+                is_completed = json_data.get('done', '') == 'Ja'
+                title = json_data.get('title', 'Unknown')
+            
+            # Skip completed tasks by default (unless explicitly requested)
+            if not include_completed and is_completed:
+                if verbose:
+                    print(f"  ⏭ Skipping completed task: {title}")
+                return True  # Count as successful, but don't process
+            
+            # Convert to Asana format if requested
+            if hasattr(args, 'asana_format') and args.asana_format:
+                if verbose:
+                    print(f"  🔄 Converting to Asana format with subtasks...")
+                asana_rows = convert_to_asana_format([json_data], default_assignee, args.project_name, args.asana_language)
+                write_csv_file(output_path, asana_rows, dry_run, asana_format=True, language=args.asana_language)
+                
+                if not dry_run and verbose:
+                    main_tasks = len([r for r in asana_rows if not r['Parent task']])
+                    subtasks = len([r for r in asana_rows if r['Parent task']])
+                    print(f"  ✓ Successfully converted {main_tasks} tasks with {subtasks} subtasks to: {output_path}")
+            else:
+                # Original format
+                row = convert_json_to_asana_row(json_data, default_assignee)
+                write_csv_file(output_path, [row], dry_run)
+            
+            if not dry_run and verbose:
+                print(f"  ✓ Successfully converted to: {output_path}")
         
-        # Write CSV
-        write_csv_file(output_path, [row], dry_run)
-        
-        if not dry_run and verbose:
-            print(f"  ✓ Successfully converted to: {output_path}")
+        else:
+            print(f"  ✗ Unknown JSON format in {json_path}")
+            return False
         
         return True
         
@@ -292,6 +641,30 @@ def main():
     if args.dry_run:
         print("[DRY RUN MODE - No files will be written]")
         print()
+    
+    # Show recommendations for optimal usage
+    if args.directory:
+        print("⚠️  LEGACY MODE: You're using directory processing for single-reminder files.")
+        print("   💡 RECOMMENDED: Use 'Backup Shortcut for Reminders' iOS app to export")
+        print("   💡 all reminders as one JSON file, then use --asana-format for best results.")
+        print()
+    elif args.file and not args.asana_format:
+        format_type = None
+        try:
+            with open(args.file, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+                format_type = detect_json_format(json_data)
+        except:
+            pass
+        
+        if format_type == 'bulk':
+            print("💡 RECOMMENDATION: You're using a bulk JSON file - consider using --asana-format")
+            print("   💡 for native Asana subtasks support and better field mapping.")
+            print()
+        elif format_type == 'single':
+            print("ℹ️  LEGACY FILE: Single-reminder format detected (apple-reminders-exporter).")
+            print("   💡 For best results, use 'Backup Shortcut for Reminders' iOS app.")
+            print()
     
     if args.file:
         # Process single file
