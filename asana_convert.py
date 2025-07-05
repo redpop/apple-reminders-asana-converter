@@ -462,29 +462,45 @@ def process_single_file(json_path: str, output_path: str, default_assignee: Opti
             if verbose:
                 print(f"  📦 Detected bulk format with {len(json_data.get('reminders', []))} reminders")
             
-            rows = process_bulk_json(json_data, default_assignee, include_completed, verbose)
+            # Filter reminders based on completion status
+            filtered_reminders = []
+            skipped_count = 0
             
-            if not rows:
+            for i, reminder in enumerate(json_data['reminders'], 1):
+                # Check completion status
+                is_completed = False
+                title = ''
+                
+                if 'Title' in reminder:  # Old format
+                    is_completed = reminder.get('Is Completed', False)
+                    title = reminder.get('Title', 'Unknown')
+                else:  # New format
+                    is_completed = reminder.get('done', '') == 'Ja'
+                    title = reminder.get('title', 'Unknown')
+                
+                # Skip completed tasks by default (unless explicitly requested)
+                if not include_completed and is_completed:
+                    if verbose:
+                        print(f"  ⏭ Skipping completed task [{i}/{len(json_data['reminders'])}]: {title}")
+                    skipped_count += 1
+                    continue
+                
+                filtered_reminders.append(reminder)
+                
+                if verbose:
+                    print(f"  ✓ Converted [{i}/{len(json_data['reminders'])}]: {title}")
+            
+            if not filtered_reminders:
                 if verbose:
                     print(f"  ℹ️ No tasks to process (all completed and --include-completed not set)")
                 return True
             
+            if verbose and skipped_count > 0:
+                print(f"  📊 Processed {len(filtered_reminders)} tasks, skipped {skipped_count} completed tasks")
+            
             # Convert to Asana format with subtasks
             if verbose:
                 print(f"  🔄 Converting to Asana format with subtasks...")
-            
-            # Filter to get original reminder objects for Asana conversion
-            filtered_reminders = []
-            for reminder in json_data['reminders']:
-                # Check completion status
-                is_completed = False
-                if 'Title' in reminder:
-                    is_completed = reminder.get('Is Completed', False)
-                else:
-                    is_completed = reminder.get('done', '') == 'Ja'
-                
-                if include_completed or not is_completed:
-                    filtered_reminders.append(reminder)
             
             asana_rows = convert_to_asana_format(filtered_reminders, default_assignee, asana_language)
             write_csv_file(output_path, asana_rows, dry_run, language=asana_language)
