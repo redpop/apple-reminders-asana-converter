@@ -213,6 +213,7 @@ python asana_convert.py -f examples/sample_bulk_reminders.json \
 - **Use only the Backup Shortcut** - Other export methods are outdated
 - **Run shortcut on Mac** - Works best on macOS, large exports (500+ reminders) may take several minutes
 - **Be patient with large exports** - Processing time increases with number of reminders and attachments
+- **Duplicate reminders may occur** - The Backup Shortcut can sometimes create duplicate entries during export. This converter automatically removes them by default.
 
 ### Import Issues
 
@@ -224,16 +225,16 @@ python asana_convert.py -f examples/sample_bulk_reminders.json \
 
 ### Duplicate Tasks
 
-The converter automatically removes duplicate tasks during conversion. This is especially helpful when:
+**Known Issue:** The "Backup Shortcut for Reminders" can sometimes create duplicate entries during the export process, especially with large reminder collections or when reminders exist in multiple lists.
 
-- Apple Reminders export contains duplicates
-- Multiple lists were merged with overlapping tasks
-- Export process created duplicate entries
+The converter automatically removes these duplicates during conversion:
 
-**Deduplication logic:**
-- Tasks are considered duplicates if they have identical: title, list, due date, and notes
-- Enabled by default (use `--no-deduplicate` to disable)
-- Verbose mode shows which duplicates were removed
+- **Common causes**: Large exports, cross-list references, shortcut processing quirks
+- **Detection method**: Tasks with identical title, list, due date, and notes are considered duplicates
+- **Default behavior**: Automatic deduplication (use `--no-deduplicate` to disable)
+- **Verbose output**: Shows exactly which duplicates were removed
+
+This saves you from manually cleaning up duplicates in Asana after import.
 
 ### Tags Import Limitation
 
