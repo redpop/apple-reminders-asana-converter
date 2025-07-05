@@ -72,25 +72,25 @@ class TestPriorityMapping(unittest.TestCase):
     
     def test_map_priority_german(self):
         """Test German priority mapping"""
-        self.assertEqual(asana_convert.map_priority("Ohne"), "Low")
+        self.assertEqual(asana_convert.map_priority("Ohne"), "")  # No priority = empty
         self.assertEqual(asana_convert.map_priority("Niedrig"), "Low")
         self.assertEqual(asana_convert.map_priority("Mittel"), "Medium")
         self.assertEqual(asana_convert.map_priority("Hoch"), "High")
     
     def test_map_priority_english(self):
         """Test English priority mapping"""
-        self.assertEqual(asana_convert.map_priority("None"), "Low")
+        self.assertEqual(asana_convert.map_priority("None"), "")
         self.assertEqual(asana_convert.map_priority("Low"), "Low")
         self.assertEqual(asana_convert.map_priority("Medium"), "Medium")
         self.assertEqual(asana_convert.map_priority("High"), "High")
     
     def test_map_priority_empty(self):
         """Test empty priority"""
-        self.assertEqual(asana_convert.map_priority(""), "Low")
+        self.assertEqual(asana_convert.map_priority(""), "")
     
     def test_map_priority_unknown(self):
-        """Test unknown priority defaults to Low"""
-        self.assertEqual(asana_convert.map_priority("Unknown"), "Low")
+        """Test unknown priority defaults to empty"""
+        self.assertEqual(asana_convert.map_priority("Unknown"), "")
 
 
 class TestTagExtraction(unittest.TestCase):
@@ -239,7 +239,7 @@ class TestJsonToAsanaConversion(unittest.TestCase):
         self.assertEqual(result["Description"], "")
         self.assertEqual(result["Target Section"], "")
         self.assertEqual(result["Due Date"], "")
-        self.assertEqual(result["Priority"], "Low")
+        self.assertEqual(result["Priority"], "")  # Missing priority = empty
         self.assertEqual(result["Tags"], "")
 
 
@@ -259,12 +259,12 @@ class TestCSVWriting(unittest.TestCase):
         rows = [
             {
                 "Name": "Test Task",
-                "Description": "Test description",
-                "Target Section": "Work",
-                "Assignee": "John Doe",
+                "Notes": "Test description",
+                "Section/Column": "Work",
                 "Assignee Email": "john@example.com",
                 "Due Date": "03/15/2025",
                 "Tags": "test, example",
+                "Parent task": "",
                 "Priority": "High"
             }
         ]
@@ -276,7 +276,7 @@ class TestCSVWriting(unittest.TestCase):
             asana_convert.write_csv_file(tmp_path, rows, dry_run=False)
             
             # Verify file was written correctly
-            with open(tmp_path, 'r', encoding='utf-8') as f:
+            with open(tmp_path, 'r', encoding='utf-8-sig') as f:
                 reader = csv.DictReader(f)
                 written_rows = list(reader)
                 
@@ -348,7 +348,7 @@ class TestFileProcessing(unittest.TestCase):
             
             self.assertTrue(result)
             # CSV should contain the task
-            with open(tmp_csv_path, 'r') as f:
+            with open(tmp_csv_path, 'r', encoding='utf-8-sig') as f:
                 reader = csv.DictReader(f)
                 rows = list(reader)
                 self.assertEqual(len(rows), 1)
@@ -393,83 +393,24 @@ class TestArgumentParsing(unittest.TestCase):
             
         self.assertEqual(args.file, 'input.json')
         self.assertEqual(args.output, 'output.csv')
-        self.assertIsNone(args.directory)
-        self.assertFalse(args.separate)
         self.assertFalse(args.include_completed)
         self.assertFalse(args.dry_run)
         self.assertFalse(args.verbose)
+        self.assertEqual(args.asana_language, 'en')
     
-    def test_parse_arguments_directory_mode(self):
-        """Test parsing arguments for directory mode"""
-        test_args = ['-d', 'json_files/', '--separate', '--verbose', '--assignee', 'user@example.com']
+    def test_parse_arguments_with_options(self):
+        """Test parsing arguments with various options"""
+        test_args = ['-f', 'input.json', '--verbose', '--assignee', 'user@example.com', '--asana-language', 'de']
         
         with patch.object(sys, 'argv', ['asana_convert.py'] + test_args):
             args = asana_convert.parse_arguments()
             
-        self.assertEqual(args.directory, 'json_files/')
-        self.assertTrue(args.separate)
+        self.assertEqual(args.file, 'input.json')
         self.assertTrue(args.verbose)
         self.assertEqual(args.assignee, 'user@example.com')
-        self.assertIsNone(args.file)
+        self.assertEqual(args.asana_language, 'de')
 
 
-class TestProcessDirectory(unittest.TestCase):
-    """Test directory processing functionality"""
-    
-    def test_process_directory_no_json_files(self):
-        """Test processing directory with no JSON files"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create a non-JSON file
-            with open(os.path.join(tmp_dir, 'not_json.txt'), 'w') as f:
-                f.write("This is not a JSON file")
-            
-            with patch('builtins.print') as mock_print:
-                success, errors, skipped = asana_convert.process_directory(
-                    tmp_dir, 'output.csv', False
-                )
-                
-            self.assertEqual(success, 0)
-            self.assertEqual(errors, 0)
-            self.assertEqual(skipped, 0)
-            mock_print.assert_called_with(f"No JSON files found in {tmp_dir}")
-    
-    def test_process_directory_with_json_files(self):
-        """Test processing directory with valid JSON files"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create test JSON files
-            json_data1 = {
-                "Title": "Task 1",
-                "Notes": "First task",
-                "List": "Work",
-                "Is Completed": False
-            }
-            json_data2 = {
-                "Title": "Task 2", 
-                "Notes": "Second task",
-                "List": "Personal",
-                "Is Completed": False
-            }
-            
-            with open(os.path.join(tmp_dir, 'task1.json'), 'w') as f:
-                json.dump(json_data1, f)
-            with open(os.path.join(tmp_dir, 'task2.json'), 'w') as f:
-                json.dump(json_data2, f)
-            
-            output_path = os.path.join(tmp_dir, 'output.csv')
-            
-            success, errors, skipped = asana_convert.process_directory(
-                tmp_dir, output_path, False
-            )
-            
-            self.assertEqual(success, 2)
-            self.assertEqual(errors, 0)
-            self.assertEqual(skipped, 0)
-            
-            # Verify CSV was created with both tasks
-            with open(output_path, 'r') as f:
-                reader = csv.DictReader(f)
-                rows = list(reader)
-                self.assertEqual(len(rows), 2)
 
 
 class TestTagCombining(unittest.TestCase):
@@ -563,7 +504,7 @@ class TestBulkJsonProcessing(unittest.TestCase):
         rows = asana_convert.process_bulk_json(json_data, include_completed=False)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["Name"], "Task 1")
-        self.assertEqual(rows[0]["Tags"], "tag1,native1")
+        self.assertEqual(rows[0]["Tags"], "tag1, native1")
         self.assertEqual(rows[0]["Priority"], "High")
         self.assertIn("⭐ Flagged", rows[0]["Description"])
         
@@ -613,7 +554,7 @@ class TestEnhancedConversion(unittest.TestCase):
         result = asana_convert.convert_json_to_asana_row(json_data)
         
         self.assertEqual(result["Name"], "Enhanced Task")
-        self.assertEqual(result["Tags"], "work,urgent,native,project")
+        self.assertEqual(result["Tags"], "work, urgent, native, project")
         self.assertEqual(result["Priority"], "High")
         self.assertEqual(result["Target Section"], "Projects")
         
@@ -649,10 +590,16 @@ class TestNewPriorityMapping(unittest.TestCase):
     
     def test_map_priority_german_backup_format(self):
         """Test German priority mapping for Backup Shortcut format"""
-        self.assertEqual(asana_convert.map_priority("Ohne"), "Low")
+        self.assertEqual(asana_convert.map_priority("Ohne"), "")  # No priority = empty
         self.assertEqual(asana_convert.map_priority("Gering"), "Low")
         self.assertEqual(asana_convert.map_priority("Mittel"), "Medium")
         self.assertEqual(asana_convert.map_priority("Hoch"), "High")
+        
+        # Test German localization
+        self.assertEqual(asana_convert.map_priority("Ohne", "de"), "")  # No priority = empty
+        self.assertEqual(asana_convert.map_priority("Gering", "de"), "Niedrig")
+        self.assertEqual(asana_convert.map_priority("Mittel", "de"), "Mittel")
+        self.assertEqual(asana_convert.map_priority("Hoch", "de"), "Hoch")
 
 
 if __name__ == '__main__':

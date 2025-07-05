@@ -14,16 +14,55 @@
       "url": "https://company.com/current-site",
       "subtasks": [
         {
-          "title": "Create wireframes and mockups",
-          "notes": "Use Figma for design mockups"
+          "title": "Create wireframes and mockups #design",
+          "notes": "Use Figma for design mockups",
+          "due_date": "2025-03-05T12:00:00Z",
+          "prio": "Hoch",
+          "tags": ["design", "mockup"],
+          "flagged": "Ja",
+          "has_reminder": "Ja",
+          "url": "https://figma.com/wireframes",
+          "create_date": "2025-02-01T10:00:00Z",
+          "end_date": "",
+          "last_update": "2025-02-01T10:00:00Z",
+          "pictures": [],
+          "reminder_location": "Design Office",
+          "list": "Work Projects",
+          "done": "Nein"
         },
         {
           "title": "Implement responsive layout",
-          "notes": "Test on mobile devices"
+          "notes": "Test on mobile devices",
+          "due_date": "2025-03-10T16:00:00Z",
+          "prio": "Mittel",
+          "tags": ["frontend", "responsive"],
+          "flagged": "Nein",
+          "has_reminder": "Nein",
+          "url": "",
+          "create_date": "2025-02-01T10:00:00Z",
+          "end_date": "",
+          "last_update": "2025-02-01T10:00:00Z",
+          "pictures": [],
+          "reminder_location": "",
+          "list": "Work Projects",
+          "done": "Nein"
         },
         {
           "title": "SEO optimization and testing",
-          "notes": "Use Google PageSpeed insights"
+          "notes": "Use Google PageSpeed insights",
+          "due_date": "",
+          "prio": "Gering",
+          "tags": ["seo", "testing"],
+          "flagged": "Nein",
+          "has_reminder": "Nein",
+          "url": "https://pagespeed.web.dev",
+          "create_date": "2025-02-01T10:00:00Z",
+          "end_date": "",
+          "last_update": "2025-02-01T10:00:00Z",
+          "pictures": [],
+          "reminder_location": "",
+          "list": "Work Projects",
+          "done": "Nein"
         }
       ]
     },
