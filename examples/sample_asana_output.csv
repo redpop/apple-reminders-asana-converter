@@ -1,0 +1,48 @@
+﻿"Name","Assignee Email","Due Date","Tags","Notes","Section/Column","Parent task","Priorität"
+"Website redesign","max.mustermann@example.com","03/15/2025","webdev, design, urgent, development, priority","Update the company website with new branding
+- Modern design
+- Mobile responsive
+- SEO optimization
+
+⭐ Flagged
+🔔 Has Reminder
+📍 Location: Office
+🔗 URL: https://company.com/current-site","Work Projects","","Hoch"
+"Create wireframes and mockups","max.mustermann@example.com","03/05/2025","design, mockup","Use Figma for design mockups\n\n⭐ Flagged\n🔔 Has Reminder\n📍 Location: Design Office\n🔗 URL: https://figma.com/wireframes","","Website redesign","Hoch"
+"Implement responsive layout","max.mustermann@example.com","03/10/2025","frontend, responsive","Test on mobile devices","","Website redesign","Mittel"
+"SEO optimization and testing","max.mustermann@example.com","","seo, testing","Use Google PageSpeed insights\n\n🔗 URL: https://pagespeed.web.dev","","Website redesign","Niedrig"
+"Buy groceries","max.mustermann@example.com","02/08/2025","shopping, family, weekly","Weekly grocery shopping for the family
+
+🔔 Has Reminder
+📍 Location: Supermarket","Personal","","Mittel"
+"Fresh vegetables and fruits","max.mustermann@example.com","","","Organic if possible","","Buy groceries",""
+"Dairy products","max.mustermann@example.com","","","Milk, cheese, yogurt","","Buy groceries",""
+"Team meeting preparation","max.mustermann@example.com","02/10/2025","meeting, quarterly","Prepare agenda and materials for quarterly team meeting
+
+⭐ Flagged
+🔔 Has Reminder
+📍 Location: Conference Room A
+🔗 URL: https://company.com/team-docs","Work Projects","","Hoch"
+"Book vacation","max.mustermann@example.com","04/01/2025","travel, family, vacation, planning","Plan summer vacation for the family
+
+Destination options:
+- Italy (Tuscany)
+- Greece (Santorini)
+- Spain (Barcelona)
+
+🔗 URL: https://booking.com/family-deals","Personal","","Niedrig"
+"Research destinations and prices","max.mustermann@example.com","","","Compare flight and hotel prices","","Book vacation",""
+"Check passport expiration dates","max.mustermann@example.com","","","Renew if needed before June","","Book vacation",""
+"Book flights and accommodation","max.mustermann@example.com","","","Use travel insurance","","Book vacation",""
+"Learn Python automation","max.mustermann@example.com","06/30/2025","programming, learning, education, self-improvement","Study Python for task automation and productivity
+
+Resources:
+- Python.org documentation
+- Automate the Boring Stuff book
+- Practice projects
+
+⭐ Flagged
+🔗 URL: https://automatetheboringstuff.com","Personal Development","","Mittel"
+"Read Automate the Boring Stuff chapters 1-5","max.mustermann@example.com","","","Focus on basics and file handling","","Learn Python automation",""
+"Build a file organizer script","max.mustermann@example.com","","","Sort downloads folder automatically","","Learn Python automation",""
+"Create email automation script","max.mustermann@example.com","","","Send weekly reports automatically","","Learn Python automation",""
