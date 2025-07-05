@@ -38,6 +38,7 @@ Examples:
     parser.add_argument('--assignee', type=str, help='Email address for assignee (e.g. john.doe@company.com)')
     parser.add_argument('--include-completed', action='store_true', help='Include completed tasks (default: only open tasks)')
     parser.add_argument('--asana-language', type=str, choices=['en', 'de'], default='en', help='Language for Asana field names and values (en/de, default: en)')
+    parser.add_argument('--no-deduplicate', action='store_true', help='Disable automatic deduplication of tasks')
     parser.add_argument('--dry-run', action='store_true', help='Test run without writing files')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     
@@ -266,6 +267,46 @@ def write_csv_file(filepath: str, rows: List[Dict], dry_run: bool = False, langu
         writer.writerows(rows)
 
 
+def deduplicate_reminders(reminders: List[Dict], verbose: bool = False) -> List[Dict]:
+    """
+    Remove duplicate reminders based on title, list, due date, and notes
+    Returns list of unique reminders
+    """
+    seen = set()
+    unique_reminders = []
+    duplicates_removed = 0
+    
+    for reminder in reminders:
+        # Create a unique key based on essential fields
+        is_old_format = 'Title' in reminder
+        if is_old_format:
+            title = reminder.get('Title', '')
+            notes = reminder.get('Notes', '')
+            list_name = reminder.get('List', '')
+            due_date = reminder.get('Due Date', '')
+        else:
+            title = reminder.get('title', '')
+            notes = reminder.get('notes', '')
+            list_name = reminder.get('list', '')
+            due_date = reminder.get('due_date', '')
+        
+        # Create unique key from title, list, due date, and notes
+        unique_key = (title.strip(), list_name.strip(), due_date.strip(), notes.strip())
+        
+        if unique_key not in seen:
+            seen.add(unique_key)
+            unique_reminders.append(reminder)
+        else:
+            duplicates_removed += 1
+            if verbose:
+                print(f"  🔁 Removing duplicate: {title}")
+    
+    if verbose and duplicates_removed > 0:
+        print(f"  📊 Removed {duplicates_removed} duplicate tasks")
+    
+    return unique_reminders
+
+
 def convert_to_asana_format(reminders: List[Dict], default_assignee: Optional[str] = None, 
                            language: str = 'en') -> List[Dict]:
     """
@@ -441,7 +482,7 @@ def process_bulk_json(json_data: Dict, default_assignee: Optional[str] = None,
 
 def process_single_file(json_path: str, output_path: str, default_assignee: Optional[str] = None, 
                        include_completed: bool = False, dry_run: bool = False, verbose: bool = False,
-                       asana_format: bool = True, asana_language: str = 'en') -> bool:
+                       asana_format: bool = True, asana_language: str = 'en', no_deduplicate: bool = False) -> bool:
     """
     Processes a single JSON file (supports both single reminder and bulk formats)
     Always uses Asana format with subtasks support
@@ -498,11 +539,21 @@ def process_single_file(json_path: str, output_path: str, default_assignee: Opti
             if verbose and skipped_count > 0:
                 print(f"  📊 Processed {len(filtered_reminders)} tasks, skipped {skipped_count} completed tasks")
             
+            # Remove duplicates unless disabled
+            if not no_deduplicate:
+                if verbose:
+                    print(f"  🔍 Checking for duplicate tasks...")
+                deduplicated_reminders = deduplicate_reminders(filtered_reminders, verbose)
+            else:
+                deduplicated_reminders = filtered_reminders
+                if verbose:
+                    print(f"  ⚠️ Deduplication disabled")
+            
             # Convert to Asana format with subtasks
             if verbose:
                 print(f"  🔄 Converting to Asana format with subtasks...")
             
-            asana_rows = convert_to_asana_format(filtered_reminders, default_assignee, asana_language)
+            asana_rows = convert_to_asana_format(deduplicated_reminders, default_assignee, asana_language)
             write_csv_file(output_path, asana_rows, dry_run, language=asana_language)
             
             if not dry_run and verbose:
@@ -531,6 +582,7 @@ def process_single_file(json_path: str, output_path: str, default_assignee: Opti
             if verbose:
                 print(f"  🔄 Converting to Asana format with subtasks...")
             
+            # For single files, deduplication isn't needed but we still call the function for consistency
             asana_rows = convert_to_asana_format([json_data], default_assignee, asana_language)
             write_csv_file(output_path, asana_rows, dry_run, language=asana_language)
             
@@ -570,7 +622,8 @@ def main():
     success = process_single_file(
         args.file, output_path, args.assignee, 
         args.include_completed, args.dry_run, args.verbose,
-        asana_format=True, asana_language=args.asana_language
+        asana_format=True, asana_language=args.asana_language,
+        no_deduplicate=args.no_deduplicate
     )
     
     if success:
