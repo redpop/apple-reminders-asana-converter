@@ -6,6 +6,7 @@ A Python tool to convert bulk Apple Reminders JSON exports to Asana-compatible C
 
 - ✅ **Bulk JSON processing** - Process hundreds of reminders in one file
 - ✅ **Advanced subtasks** - Full feature parity with main tasks (due dates, priorities, tags)
+- ✅ **Automatic deduplication** - Removes duplicate tasks during conversion
 - ✅ **Localization support** - German and English field names/priorities
 - ✅ **Smart task filtering** - Skip completed tasks by default (configurable)
 - ✅ **Enhanced metadata** - Preserves flags, locations, URLs, reminders
@@ -74,6 +75,7 @@ python asana_convert.py -f reminders_export.json \
 | `--asana-language {en,de}` | Language for field names and priorities (en/de, default: en) |
 | `--assignee`               | Email address for task assignee                              |
 | `--include-completed`      | Include completed tasks in export                            |
+| `--no-deduplicate`         | Disable automatic deduplication of tasks                     |
 | `--dry-run`                | Preview conversion without creating files                    |
 | `-v, --verbose`            | Detailed output during conversion                            |
 
@@ -219,6 +221,19 @@ python asana_convert.py -f examples/sample_bulk_reminders.json \
 - **Encoding issues** → The tool automatically uses UTF-8 BOM for Excel compatibility
 - **Missing sections** → Tasks import to project level, use sections within project
 - **Tags not working** → Normal behavior! Tags become "Tags (imported)" custom field
+
+### Duplicate Tasks
+
+The converter automatically removes duplicate tasks during conversion. This is especially helpful when:
+
+- Apple Reminders export contains duplicates
+- Multiple lists were merged with overlapping tasks
+- Export process created duplicate entries
+
+**Deduplication logic:**
+- Tasks are considered duplicates if they have identical: title, list, due date, and notes
+- Enabled by default (use `--no-deduplicate` to disable)
+- Verbose mode shows which duplicates were removed
 
 ### Tags Import Limitation
 

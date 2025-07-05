@@ -236,3 +236,8 @@ $RECYCLE.BIN/
 # Claude Code configuration
 .claude
 CLAUDE.md
+
+# Personal data files
+reminders_*.json
+*.csv
+!examples/*.csv
