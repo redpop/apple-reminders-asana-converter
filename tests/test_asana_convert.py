@@ -444,6 +444,122 @@ class TestTagCombining(unittest.TestCase):
         self.assertEqual(result2, ['webdev', 'urgent'])
 
 
+class TestReminderDeduplication(unittest.TestCase):
+    """Test reminder deduplication functionality"""
+    
+    def test_deduplicate_reminders_no_duplicates(self):
+        """Test deduplication with no duplicate reminders"""
+        reminders = [
+            {
+                "title": "Task 1",
+                "notes": "Description 1",
+                "list": "Work", 
+                "due_date": "2025-03-15T09:00:00Z"
+            },
+            {
+                "title": "Task 2", 
+                "notes": "Description 2",
+                "list": "Personal",
+                "due_date": "2025-03-16T09:00:00Z"
+            }
+        ]
+        result = asana_convert.deduplicate_reminders(reminders)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result, reminders)
+    
+    def test_deduplicate_reminders_exact_duplicates(self):
+        """Test deduplication with exact duplicate reminders"""
+        duplicate_reminder = {
+            "title": "Duplicate Task",
+            "notes": "Same description",
+            "list": "Work",
+            "due_date": "2025-03-15T09:00:00Z"
+        }
+        reminders = [duplicate_reminder.copy(), duplicate_reminder.copy()]
+        result = asana_convert.deduplicate_reminders(reminders)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], duplicate_reminder)
+    
+    def test_deduplicate_reminders_old_format(self):
+        """Test deduplication with old format (apple-reminders-exporter)"""
+        duplicate_reminder = {
+            "Title": "Old Format Task",
+            "Notes": "Old description",
+            "List": "Work",
+            "Due Date": "2025-03-15T09:00:00Z"
+        }
+        reminders = [duplicate_reminder.copy(), duplicate_reminder.copy()]
+        result = asana_convert.deduplicate_reminders(reminders)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], duplicate_reminder)
+    
+    def test_deduplicate_reminders_mixed_format(self):
+        """Test deduplication with mixed old and new format"""
+        old_format = {
+            "Title": "Same Task",
+            "Notes": "Description", 
+            "List": "Work",
+            "Due Date": "2025-03-15T09:00:00Z"
+        }
+        new_format = {
+            "title": "Same Task",
+            "notes": "Description",
+            "list": "Work", 
+            "due_date": "2025-03-15T09:00:00Z"
+        }
+        # These should be considered duplicates
+        reminders = [old_format, new_format]
+        result = asana_convert.deduplicate_reminders(reminders)
+        self.assertEqual(len(result), 1)  # Should keep only one
+    
+    def test_deduplicate_reminders_different_fields(self):
+        """Test that reminders with different key fields are not deduplicated"""
+        base_reminder = {
+            "title": "Task",
+            "notes": "Description",
+            "list": "Work",
+            "due_date": "2025-03-15T09:00:00Z"
+        }
+        
+        # Different title
+        reminder_diff_title = base_reminder.copy()
+        reminder_diff_title["title"] = "Different Task"
+        
+        # Different due date
+        reminder_diff_date = base_reminder.copy()
+        reminder_diff_date["due_date"] = "2025-03-16T09:00:00Z"
+        
+        # Different list
+        reminder_diff_list = base_reminder.copy()
+        reminder_diff_list["list"] = "Personal"
+        
+        # Different notes
+        reminder_diff_notes = base_reminder.copy()
+        reminder_diff_notes["notes"] = "Different description"
+        
+        reminders = [base_reminder, reminder_diff_title, reminder_diff_date, reminder_diff_list, reminder_diff_notes]
+        result = asana_convert.deduplicate_reminders(reminders)
+        self.assertEqual(len(result), 5)  # All should be kept as they're different
+    
+    def test_deduplicate_reminders_empty_list(self):
+        """Test deduplication with empty reminder list"""
+        result = asana_convert.deduplicate_reminders([])
+        self.assertEqual(result, [])
+    
+    def test_deduplicate_reminders_preserves_order(self):
+        """Test that deduplication preserves the order of first occurrence"""
+        reminder1 = {"title": "First", "notes": "", "list": "Work", "due_date": ""}
+        reminder2 = {"title": "Second", "notes": "", "list": "Work", "due_date": ""}
+        duplicate_of_first = reminder1.copy()
+        
+        reminders = [reminder1, reminder2, duplicate_of_first]
+        result = asana_convert.deduplicate_reminders(reminders)
+        
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], reminder1)  # First occurrence preserved
+        self.assertEqual(result[1], reminder2)
+
+
 class TestJsonFormatDetection(unittest.TestCase):
     """Test JSON format detection"""
     
